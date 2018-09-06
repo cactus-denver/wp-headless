@@ -11,7 +11,7 @@
 
 			$this->settings["awsAccessKey"] = get_site_option(Amazon_Web_Services::SETTINGS_KEY)["access_key_id"];
 			$this->settings["awsSecretKey"] = get_site_option(Amazon_Web_Services::SETTINGS_KEY)["secret_access_key"];
-			
+
 			$this->settings["tmp_file"] = $tmp_file;
 			$this->settings["file_name"] = $dest . $file_name;
 			$this->settings["file_url"] = "http://". $this->settings["bucket"] . ".s3.amazonaws.com/" . $this->settings["file_name"];
@@ -25,7 +25,7 @@
 			}
 		}
 
-		function upload(){
+		function upload($type = 'json'){
 			$s3 = new S3(
 				$this->settings["awsAccessKey"],
 				$this->settings["awsSecretKey"]
@@ -35,7 +35,11 @@
 				S3::ACL_PUBLIC_READ,
 				0
 			);
-			return $s3->putObjectFile($this->settings["tmp_file"], $this->settings["bucket"], $this->settings["file_name"], S3::ACL_PUBLIC_READ, array(), "application/json");
+			if($type == 'json'){
+				return $s3->putObjectFile($this->settings["tmp_file"], $this->settings["bucket"], $this->settings["file_name"], S3::ACL_PUBLIC_READ, array(), "application/json");
+			}else if($type == 'xml'){
+				return $s3->putObjectFile($this->settings["tmp_file"], $this->settings["bucket"], $this->settings["file_name"], S3::ACL_PUBLIC_READ, array(), "application/xml");
+			}
 		}
 	}
 ?>

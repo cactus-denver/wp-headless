@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 /*
 Plugin Name: WP Headless
@@ -20,7 +20,7 @@ if( !class_exists("wpheadless") ){
 	include_once("lib/uploader.php");
 
 	class wpheadless {
-	
+
 		// Setup vars
 		var $version = "1.0.0";
 		var $settings = array();
@@ -31,7 +31,7 @@ if( !class_exists("wpheadless") ){
 		| construct:void (-)
 		|
 		| Create our class.
-		| 
+		|
 		| @env:string - The environment to publish
 		------------------------------------------ */
 		function __construct( $env = '' ){
@@ -45,7 +45,8 @@ if( !class_exists("wpheadless") ){
 				"env"					=> $env,
 				"tmp_dir"			=> get_template_directory() . "/data" . "/",
 				"content"			=> get_field("content", "options"),
-				"dest"				=> get_field("destination", "options") == "" ? "wp-headless-data/" : get_field("destination", "options")
+				"dest"				=> get_field("destination", "options") == "" ? "wp-headless-data/" : get_field("destination", "options"),
+				"sitemap_domain" => "https://cactusinc.com"
 			);
 
 			// Format the destination if needed
@@ -65,8 +66,9 @@ if( !class_exists("wpheadless") ){
 		| Publishes the content
 		------------------------------------------ */
 		function publish(){
+			$sitemap_items = array();
 			foreach( $this->settings["content"] as $content ){
-				
+
 				// Define the filename
 				$file_name = $this->settings["env"] . "-" . $content["file_name"] . ".json";
 				$file_path = $this->settings["tmp_dir"] . $file_name;
@@ -74,7 +76,9 @@ if( !class_exists("wpheadless") ){
 
 				// loop the content
 				foreach( $content["content"] as $post ){
-					array_push( $file_content, $this->parsePost( $post, array() ));
+					$parsed_post = $this->parsePost( $post, array() );
+					array_push( $file_content, $parsed_post);
+					array_push( $sitemap_items, array($parsed_post['uri'], $parsed_post['post_modified']));
 				}
 
 				// Ensure temp directory exists
@@ -107,6 +111,78 @@ if( !class_exists("wpheadless") ){
 					$local_path = get_template_directory_uri() . "/data" . "/" . $file_name;
 					include("views/success-local.php");
 				}
+			}
+
+			// Generate sitemap
+			$this->generateSitemap($sitemap_items);
+		}
+
+		/*
+		------------------------------------------
+		| generateSitemap:void (-)
+		|
+		| Publishes the sitemap
+		| @content:array - Array for content
+		------------------------------------------ */
+		function generateSitemap($sitemap_items){
+
+			// Define the filename
+			$file_name = $this->settings["env"] . "-sitemap.xml";
+			$file_path = $this->settings["tmp_dir"] . $file_name;
+			$file_content = '';
+
+			//Get all posts (not included in json content) and add them to the list of items
+			$posts = array();
+			$args = array(
+				'posts_per_page' => -1,
+				'post_status'    => 'publish',
+				'post_type'      => array('post'),
+			);
+			$the_query = new WP_Query($args);
+			while($the_query->have_posts()) {
+				$the_query->the_post();
+				$item = array(str_replace(home_url(), '', get_permalink()), get_post_modified_time('Y-m-d G:i:s'));
+				array_push($sitemap_items, $item);
+			}
+
+			//Generate xml from items
+			$xml = new SimpleXMLElement('<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd http://www.google.com/schemas/sitemap-image/1.1 http://www.google.com/schemas/sitemap-image/1.1/sitemap-image.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
+			foreach($sitemap_items as $item){
+			    $url = $xml->addChild('url');
+			    $url->addChild('loc', $this->settings["sitemap_domain"] . $item[0]);
+			    $url->addChild('lastmod', $item[1]);
+			}
+			$file_content = $xml->asXML();
+
+			// Ensure temp directory exists
+			if( !file_exists( $this->settings["tmp_dir"] )){
+				mkdir( $this->settings["tmp_dir"] );
+			}
+
+			// Write the temp file
+			$fp = fopen( $file_path, "w");
+			fwrite($fp, $file_content);
+			fclose($fp);
+
+			// Create the uploader
+			$this->uploader = new Uploader($file_name, $file_path, $this->settings["dest"] );
+
+			// Upload
+			if( $this->uploader->canUpload() ){
+				if( $this->uploader->upload('xml') ){
+
+					// Success
+					include("views/success.php");
+
+					// Remove temp files
+					unlink($file_path);
+					rmdir($this->settings["tmp_dir"]);
+				} else {
+					include("views/error.php");
+				}
+			} else {
+				$local_path = get_template_directory_uri() . "/data" . "/" . $file_name;
+				include("views/success-local.php");
 			}
 		}
 
@@ -144,6 +220,9 @@ if( !class_exists("wpheadless") ){
 			foreach( $post as $post_field_key => $post_field_value ){
 				$content[$post_field_key] = do_shortcode($post_field_value);
 			}
+
+			// URI for sitemap
+			$content['uri'] = str_replace(home_url(), '', get_permalink($post->ID));
 
 			// Loop custom fields
 			if( get_fields( $post->ID ) ){
@@ -183,7 +262,7 @@ if( !class_exists("wpheadless") ){
 	 *
 	 * Setup
 	 * Setup the plugin add hooks & check requirements
-	 * 
+	 *
 	 * Version: 1.0.0
 	 * @init:function - Runs a requirement check
 	 * 	- If requirements are met, builds menus
@@ -284,7 +363,7 @@ if( !class_exists("wpheadless") ){
 			$headless->publish();
 		}
 
-		
+
 
 	}
 
@@ -298,7 +377,7 @@ if( !class_exists("wpheadless") ){
 		require("lib/settings-fields.php");
 	}
 
-	add_action('admin_menu', 'init');	
+	add_action('admin_menu', 'init');
 	add_action('wp_loaded', 'loadFields');
 }
 
