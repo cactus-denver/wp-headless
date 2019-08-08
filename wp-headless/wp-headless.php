@@ -46,7 +46,8 @@ if( !class_exists("wpheadless") ){
 				"tmp_dir"			=> get_template_directory() . "/data" . "/",
 				"content"			=> get_field("content", "options"),
 				"dest"				=> get_field("destination", "options") == "" ? "wp-headless-data/" : get_field("destination", "options"),
-				"sitemap_domain" => "https://cactusinc.com"
+				"sitemap_domain" => "https://cactusinc.com",
+				"webhook" => $env == "production" ? get_field("webhook-production", "options") : get_field("webhook-staging", "options"),
 			);
 
 			// Format the destination if needed
@@ -56,6 +57,9 @@ if( !class_exists("wpheadless") ){
 			if( $this->settings["dest"][0] == "/" ){
 				$this->settings["dest"] = substr($this->settings["dest"], 1);
 			}
+
+			// Make webhook false if string
+			if($this->settings["webhook"] == "") $this->settings["webhook"] = false;
 
 		}
 
@@ -113,8 +117,28 @@ if( !class_exists("wpheadless") ){
 				}
 			}
 
-			// Generate sitemap
+			// Final Things
+			$this->callWebhook();
 			$this->generateSitemap($sitemap_items);
+
+		}
+
+		/*
+		------------------------------------------
+		| callWebhook:void (-)
+		|
+		| Calls the webhook
+		------------------------------------------ */
+		function callWebhook(){
+			if($this->settings["webhook"]){
+				// echo 'WEBHOOK: '; print_r($this->settings["webhook"]);
+				$ch = curl_init();
+				curl_setopt($ch, CURLOPT_URL, $this->settings["webhook"]);
+				curl_setopt($ch, CURLOPT_POST, 1);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
+				$result = curl_exec($ch);
+				curl_close($ch);
+			}
 		}
 
 		/*
