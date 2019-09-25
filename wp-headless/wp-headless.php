@@ -46,7 +46,7 @@ if( !class_exists("wpheadless") ){
 				"tmp_dir"			=> get_template_directory() . "/data" . "/",
 				"content"			=> get_field("content", "options"),
 				"dest"				=> get_field("destination", "options") == "" ? "wp-headless-data/" : get_field("destination", "options"),
-				"sitemap_domain" => "https://cactusinc.com",
+				"sitemap_domain" => get_field("sitemap-domain", "options"),
 				"webhook" => $env == "production" ? get_field("webhook-production", "options") : get_field("webhook-staging", "options"),
 			);
 
